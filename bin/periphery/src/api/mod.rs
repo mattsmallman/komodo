@@ -9,7 +9,7 @@ use komodo_client::entities::{
 };
 use periphery_client::api::{
   build::*, compose::*, container::*, git::*, image::*, network::*,
-  stats::*, terminal::*, volume::*, *,
+  stats::*, swarm::*, terminal::*, volume::*, *,
 };
 use resolver_api::Resolve;
 use response::Response;
@@ -26,6 +26,7 @@ mod image;
 mod network;
 mod router;
 mod stats;
+mod swarm;
 mod terminal;
 mod volume;
 
@@ -134,6 +135,23 @@ pub enum PeripheryRequest {
   // Volume (Write)
   DeleteVolume(DeleteVolume),
   PruneVolumes(PruneVolumes),
+
+  // Swarm (Read)
+  InspectSwarm(InspectSwarm),
+  ListSwarmNodes(ListSwarmNodes),
+  InspectSwarmNode(InspectSwarmNode),
+  ListSwarmServices(ListSwarmServices),
+  InspectSwarmService(InspectSwarmService),
+  GetSwarmServiceLogs(GetSwarmServiceLogs),
+
+  // Swarm (Write)
+  InitSwarm(InitSwarm),
+  LeaveSwarm(LeaveSwarm),
+  CreateSwarmService(CreateSwarmService),
+  UpdateSwarmService(UpdateSwarmService),
+  RemoveSwarmService(RemoveSwarmService),
+  ScaleSwarmService(ScaleSwarmService),
+  RollbackSwarmService(RollbackSwarmService),
 
   // All in one (Read)
   GetDockerLists(GetDockerLists),

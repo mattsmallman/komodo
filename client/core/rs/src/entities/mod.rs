@@ -59,6 +59,8 @@ pub mod server;
 pub mod stack;
 /// Subtypes for server stats reporting.
 pub mod stats;
+/// Subtypes of [Swarm][swarm::Swarm]
+pub mod swarm;
 /// Subtypes of [ResourceSync][sync::ResourceSync]
 pub mod sync;
 /// Subtypes of [Tag][tag::Tag].
@@ -1243,6 +1245,7 @@ pub enum ResourceTarget {
   Builder(String),
   Alerter(String),
   ResourceSync(String),
+  Swarm(String),
 }
 
 impl ResourceTarget {
@@ -1271,6 +1274,7 @@ impl ResourceTarget {
       ResourceTarget::Builder(id) => id.is_empty(),
       ResourceTarget::Alerter(id) => id.is_empty(),
       ResourceTarget::ResourceSync(id) => id.is_empty(),
+      ResourceTarget::Swarm(id) => id.is_empty(),
     }
   }
 
@@ -1289,6 +1293,7 @@ impl ResourceTarget {
       ResourceTarget::Procedure(id) => id,
       ResourceTarget::Action(id) => id,
       ResourceTarget::ResourceSync(id) => id,
+      ResourceTarget::Swarm(id) => id,
     };
     (self.extract_variant(), id)
   }
@@ -1348,6 +1353,12 @@ impl From<&stack::Stack> for ResourceTarget {
   }
 }
 
+impl From<&swarm::Swarm> for ResourceTarget {
+  fn from(swarm: &swarm::Swarm) -> Self {
+    Self::Swarm(swarm.id.clone())
+  }
+}
+
 impl From<&action::Action> for ResourceTarget {
   fn from(action: &action::Action) -> Self {
     Self::Action(action.id.clone())
@@ -1368,6 +1379,7 @@ impl ResourceTargetVariant {
       ResourceTargetVariant::Procedure => "procedure",
       ResourceTargetVariant::ResourceSync => "resource_sync",
       ResourceTargetVariant::Stack => "stack",
+      ResourceTargetVariant::Swarm => "swarm",
       ResourceTargetVariant::Action => "action",
     }
   }
@@ -1415,6 +1427,9 @@ pub fn resource_link(
     }
     ResourceTargetVariant::Stack => {
       format!("/stacks/{id}")
+    }
+    ResourceTargetVariant::Swarm => {
+      format!("/swarms/{id}")
     }
     ResourceTargetVariant::Server => {
       format!("/servers/{id}")
