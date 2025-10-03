@@ -25,6 +25,7 @@ there are no warranties. Use at your own risk.
 
 - [periphery setup](https://github.com/moghtech/komodo/blob/main/scripts/readme.md)
 - [roadmap](https://github.com/moghtech/komodo/blob/main/roadmap.md)
+- [docker swarm deployment](https://github.com/moghtech/komodo/blob/main/docsite/docs/setup/docker-swarm.md)
 
 ## Screenshots
 
