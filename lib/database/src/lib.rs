@@ -17,6 +17,7 @@ use komodo_client::entities::{
   server::Server,
   stack::Stack,
   stats::SystemStatsRecord,
+  swarm::Swarm,
   sync::ResourceSync,
   tag::Tag,
   update::Update,
@@ -62,6 +63,7 @@ pub struct Client {
   pub alerters: Collection<Alerter>,
   pub resource_syncs: Collection<ResourceSync>,
   pub stacks: Collection<Stack>,
+  pub swarms: Collection<Swarm>,
   //
   pub db: Database,
 }
@@ -99,6 +101,7 @@ impl Client {
       resource_syncs: resource_collection(&db, "ResourceSync")
         .await?,
       stacks: resource_collection(&db, "Stack").await?,
+      swarms: resource_collection(&db, "Swarm").await?,
       //
       db,
     };
