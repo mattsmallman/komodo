@@ -51,11 +51,17 @@ echo "your_passkey" | docker secret create komodo_passkey -
 # Create empty config (or provide your own)
 echo "" | docker config create core_config -
 
+# Create Periphery root directory
+sudo mkdir -p /etc/komodo
+
+# Export environment variables
+export $(cat compose/compose.env | grep -v '^#' | grep -v '^$' | grep '=' | cut -d'#' -f1 | xargs)
+
 # Deploy MongoDB stack
-docker stack deploy -c compose/mongo.swarm.compose.yaml --compose-file compose/compose.env komodo
+docker stack deploy -c compose/mongo.swarm.compose.yaml komodo
 
 # Or deploy FerretDB stack
-docker stack deploy -c compose/ferretdb.swarm.compose.yaml --compose-file compose/compose.env komodo
+docker stack deploy -c compose/ferretdb.swarm.compose.yaml komodo
 ```
 
 ## Key Features

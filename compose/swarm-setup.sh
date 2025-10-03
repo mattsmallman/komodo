@@ -99,8 +99,16 @@ if [ ! -f "compose/compose.env" ]; then
     exit 1
 fi
 
+# Create Periphery root directory
+echo "📁 Creating Periphery root directory..."
+sudo mkdir -p /etc/komodo
+
+# Export environment variables
+echo "📋 Exporting environment variables..."
+export $(cat compose/compose.env | grep -v '^#' | grep -v '^$' | grep '=' | cut -d'#' -f1 | xargs)
+
 # Deploy the stack
-docker stack deploy -c "$COMPOSE_FILE" --compose-file compose/compose.env komodo
+docker stack deploy -c "$COMPOSE_FILE" komodo
 
 echo ""
 echo "✅ Komodo stack deployment initiated!"

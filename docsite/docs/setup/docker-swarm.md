@@ -129,12 +129,27 @@ Key variables to configure:
 
 ## Deploy the Stack
 
+:::warning Environment Variables
+Docker Stack does not support `--env-file` flag. You need to export environment variables before deploying:
+
+```bash
+# Export environment variables from compose.env
+export $(cat compose/compose.env | grep -v '^#' | grep -v '^$' | grep '=' | cut -d'#' -f1 | xargs)
+```
+
+Or create a script to handle this automatically (see `compose/swarm-setup.sh`).
+:::
+
 ### MongoDB Backend
 
 Deploy Komodo with MongoDB:
 
 ```bash
-docker stack deploy -c compose/mongo.swarm.compose.yaml --compose-file compose/compose.env.swarm komodo
+# Export environment variables
+export $(cat compose/compose.env | grep -v '^#' | grep -v '^$' | grep '=' | cut -d'#' -f1 | xargs)
+
+# Deploy stack
+docker stack deploy -c compose/mongo.swarm.compose.yaml komodo
 ```
 
 ### FerretDB Backend
@@ -142,7 +157,11 @@ docker stack deploy -c compose/mongo.swarm.compose.yaml --compose-file compose/c
 Deploy Komodo with FerretDB (Postgres-backed MongoDB alternative):
 
 ```bash
-docker stack deploy -c compose/ferretdb.swarm.compose.yaml --compose-file compose/compose.env.swarm komodo
+# Export environment variables
+export $(cat compose/compose.env | grep -v '^#' | grep -v '^$' | grep '=' | cut -d'#' -f1 | xargs)
+
+# Deploy stack
+docker stack deploy -c compose/ferretdb.swarm.compose.yaml komodo
 ```
 
 ### Standalone Periphery
@@ -150,8 +169,20 @@ docker stack deploy -c compose/ferretdb.swarm.compose.yaml --compose-file compos
 Deploy only Periphery on worker nodes:
 
 ```bash
+# Export environment variables
+export $(cat compose/compose.env | grep -v '^#' | grep -v '^$' | grep '=' | cut -d'#' -f1 | xargs)
+
+# Deploy stack
 docker stack deploy -c compose/periphery.swarm.compose.yaml komodo-periphery
 ```
+
+:::tip Prerequisites
+Ensure the Periphery root directory exists before deployment:
+```bash
+sudo mkdir -p /etc/komodo
+```
+This directory must exist on all nodes where Periphery will run.
+:::
 
 ## Manage Services
 
@@ -408,6 +439,16 @@ docker exec $(docker ps -q -f name=komodo_core) ping mongo
 # Inspect network
 docker network inspect komodo_komodo_network
 ```
+
+### DNS Resolution in Overlay Networks
+
+Services in overlay networks may experience brief DNS resolution issues during initial startup. This is normal as the Swarm DNS propagates service information. Services will typically retry and connect successfully after a few seconds.
+
+If services consistently fail to resolve each other:
+- Verify all services are on the same overlay network
+- Check that network has driver `overlay` and scope `swarm`
+- Ensure services have started and are in "Running" state
+- Look for firewall rules blocking overlay network traffic (UDP 4789, TCP/UDP 7946)
 
 ### Secret Access Issues
 
