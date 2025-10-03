@@ -42,6 +42,7 @@ mod procedure;
 mod repo;
 mod server;
 mod stack;
+mod swarm;
 mod sync;
 
 use super::Variant;
@@ -103,6 +104,16 @@ pub enum ExecuteRequest {
   DestroyStack(DestroyStack),
   BatchDestroyStack(BatchDestroyStack),
   RunStackService(RunStackService),
+
+  // ==== SWARM ====
+  InitSwarm(InitSwarm),
+  LeaveSwarm(LeaveSwarm),
+  DeploySwarmService(DeploySwarmService),
+  UpdateSwarmService(UpdateSwarmService),
+  RemoveSwarmService(RemoveSwarmService),
+  ScaleSwarmService(ScaleSwarmService),
+  GetSwarmServiceLogs(GetSwarmServiceLogs),
+  RollbackSwarmService(RollbackSwarmService),
 
   // ==== DEPLOYMENT ====
   Deploy(Deploy),

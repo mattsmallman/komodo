@@ -14,6 +14,7 @@ use komodo_client::entities::{
   repo::Repo,
   server::Server,
   stack::Stack,
+  swarm::Swarm,
   sync::ResourceSync,
   update::{Update, UpdateListItem},
   user::User,
@@ -509,6 +510,56 @@ pub async fn init_execution_update(
     ExecuteRequest::SendAlert(_) => {
       (Operation::SendAlert, ResourceTarget::system())
     }
+
+    // Swarm
+    ExecuteRequest::InitSwarm(data) => (
+      Operation::InitSwarm,
+      ResourceTarget::Swarm(
+        resource::get::<Swarm>(&data.swarm).await?.id,
+      ),
+    ),
+    ExecuteRequest::LeaveSwarm(data) => (
+      Operation::LeaveSwarm,
+      ResourceTarget::Swarm(
+        resource::get::<Swarm>(&data.swarm).await?.id,
+      ),
+    ),
+    ExecuteRequest::DeploySwarmService(data) => (
+      Operation::DeploySwarmService,
+      ResourceTarget::Swarm(
+        resource::get::<Swarm>(&data.swarm).await?.id,
+      ),
+    ),
+    ExecuteRequest::UpdateSwarmService(data) => (
+      Operation::UpdateSwarmService,
+      ResourceTarget::Swarm(
+        resource::get::<Swarm>(&data.swarm).await?.id,
+      ),
+    ),
+    ExecuteRequest::RemoveSwarmService(data) => (
+      Operation::RemoveSwarmService,
+      ResourceTarget::Swarm(
+        resource::get::<Swarm>(&data.swarm).await?.id,
+      ),
+    ),
+    ExecuteRequest::ScaleSwarmService(data) => (
+      Operation::ScaleSwarmService,
+      ResourceTarget::Swarm(
+        resource::get::<Swarm>(&data.swarm).await?.id,
+      ),
+    ),
+    ExecuteRequest::GetSwarmServiceLogs(data) => (
+      Operation::GetSwarmServiceLogs,
+      ResourceTarget::Swarm(
+        resource::get::<Swarm>(&data.swarm).await?.id,
+      ),
+    ),
+    ExecuteRequest::RollbackSwarmService(data) => (
+      Operation::RollbackSwarmService,
+      ResourceTarget::Swarm(
+        resource::get::<Swarm>(&data.swarm).await?.id,
+      ),
+    ),
 
     // Maintenance
     ExecuteRequest::ClearRepoCache(_data) => {

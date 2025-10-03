@@ -1136,6 +1136,20 @@ pub enum Operation {
   CommitSync,
   RunSync,
 
+  // swarm
+  CreateSwarm,
+  UpdateSwarm,
+  RenameSwarm,
+  DeleteSwarm,
+  InitSwarm,
+  LeaveSwarm,
+  DeploySwarmService,
+  UpdateSwarmService,
+  RemoveSwarmService,
+  ScaleSwarmService,
+  GetSwarmServiceLogs,
+  RollbackSwarmService,
+
   // maintenance
   ClearRepoCache,
   BackupCoreDatabase,
