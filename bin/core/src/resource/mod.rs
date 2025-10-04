@@ -60,7 +60,6 @@ mod refresh;
 mod repo;
 mod server;
 mod stack;
-mod swarm;
 mod sync;
 
 pub use action::{
@@ -685,7 +684,6 @@ fn resource_target<T: KomodoResource>(id: String) -> ResourceTarget {
       ResourceTarget::ResourceSync(id)
     }
     ResourceTargetVariant::Stack => ResourceTarget::Stack(id),
-    ResourceTargetVariant::Swarm => ResourceTarget::Swarm(id),
     ResourceTargetVariant::Action => ResourceTarget::Action(id),
   }
 }
@@ -965,7 +963,6 @@ where
     ResourceTarget::Procedure(id) => ("recents.Procedure", id),
     ResourceTarget::Action(id) => ("recents.Action", id),
     ResourceTarget::Stack(id) => ("recents.Stack", id),
-    ResourceTarget::Swarm(id) => ("recents.Swarm", id),
     ResourceTarget::Builder(id) => ("recents.Builder", id),
     ResourceTarget::Alerter(id) => ("recents.Alerter", id),
     ResourceTarget::ResourceSync(id) => ("recents.ResourceSync", id),

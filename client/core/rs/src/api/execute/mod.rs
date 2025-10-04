@@ -14,7 +14,6 @@ mod procedure;
 mod repo;
 mod server;
 mod stack;
-mod swarm;
 mod sync;
 
 pub use action::*;
@@ -26,7 +25,6 @@ pub use procedure::*;
 pub use repo::*;
 pub use server::*;
 pub use stack::*;
-pub use swarm::*;
 pub use sync::*;
 
 use crate::{
@@ -155,32 +153,6 @@ pub enum Execution {
   DestroyStack(DestroyStack),
   BatchDestroyStack(BatchDestroyStack),
   RunStackService(RunStackService),
-
-  // SWARM
-  /// Initialize Docker Swarm. (alias: `swarm-init`)
-  #[clap(alias = "swarm-init")]
-  InitSwarm(InitSwarm),
-  /// Leave Docker Swarm. (alias: `swarm-leave`)
-  #[clap(alias = "swarm-leave")]
-  LeaveSwarm(LeaveSwarm),
-  /// Deploy a service to swarm. (alias: `swarm-deploy`)
-  #[clap(alias = "swarm-deploy")]
-  DeploySwarmService(DeploySwarmService),
-  /// Update a swarm service. (alias: `swarm-update`)
-  #[clap(alias = "swarm-update")]
-  UpdateSwarmService(UpdateSwarmService),
-  /// Remove a swarm service. (alias: `swarm-remove`)
-  #[clap(alias = "swarm-remove")]
-  RemoveSwarmService(RemoveSwarmService),
-  /// Scale a swarm service. (alias: `swarm-scale`)
-  #[clap(alias = "swarm-scale")]
-  ScaleSwarmService(ScaleSwarmService),
-  /// Get swarm service logs. (alias: `swarm-logs`)
-  #[clap(alias = "swarm-logs")]
-  GetSwarmServiceLogs(GetSwarmServiceLogs),
-  /// Rollback a swarm service. (alias: `swarm-rollback`)
-  #[clap(alias = "swarm-rollback")]
-  RollbackSwarmService(RollbackSwarmService),
 
   // ALERTER
   TestAlerter(TestAlerter),

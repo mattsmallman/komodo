@@ -1,302 +1,335 @@
-# Docker Swarm Support in Komodo
+# Docker Swarm Support in Komodo (Stack Deployment Mode)
 
-Komodo now includes comprehensive support for managing Docker Swarm clusters with a focus on zero-downtime deployments. This guide covers setup, basic usage, and zero-downtime deployment strategies.
+Komodo now includes comprehensive support for deploying stacks to Docker Swarm with a focus on zero-downtime deployments. Docker Swarm is integrated as a deployment mode within the existing Stack resource, allowing you to manage your compose files through version control and deploy them to either standalone Docker or Docker Swarm.
 
 ## Features
 
-- **Single-Node Swarm Management**: Initialize and manage single-server Docker Swarm setups
+- **Integrated with Stack Resource**: Use your existing compose files and deploy to Swarm mode
+- **Version-Controlled Compose Files**: Full support for Git repos, just like regular stacks
 - **Zero-Downtime Deployments**: Rolling updates with configurable parameters
-- **Service Management**: Create, update, scale, and remove services
-- **Logs and Monitoring**: View service logs and monitor deployment status
-- **Rollback Support**: Quickly rollback failed deployments
+- **Automatic Swarm Initialization**: Optionally auto-initialize swarm on deployment
+- **Frontend and CLI Support**: Manage through UI or CLI
 
 ## Prerequisites
 
-- Docker Engine 1.12 or later
+- Docker Engine 1.12 or later with Swarm mode support
 - A server managed by Komodo
 - Komodo v1.19 or later
 
 ## Quick Start
 
-### 1. Create a Swarm Resource
+### 1. Create or Update a Stack for Swarm Mode
 
-Using the Komodo CLI:
+You can configure an existing stack or create a new one to use Swarm deployment mode.
 
-```bash
-# This will be available once write operations are implemented
-komodo create swarm my-swarm --server my-server
+**Via the Komodo UI:**
+1. Navigate to your Stack
+2. Set **Deploy Mode** to `swarm`
+3. Configure **Swarm Settings**:
+   - Update Parallelism: Number of tasks to update simultaneously (default: 1)
+   - Update Delay: Time between updates (e.g., "10s", "1m")
+   - Update Failure Action: pause, continue, or rollback
+   - Update Order: stop-first or start-first
+   - Auto Initialize Swarm: Enable to auto-init swarm if not active
+4. Save and deploy
+
+**Via compose file (already supported):**
+Your existing compose files work with Swarm! Just add deploy configurations:
+
+```yaml
+version: '3.8'
+services:
+  web:
+    image: nginx:latest
+    deploy:
+      replicas: 3
+      update_config:
+        parallelism: 2
+        delay: 10s
+        failure_action: rollback
+        order: start-first
+    ports:
+      - "80:80"
 ```
 
-Or via the Komodo UI (when implemented):
-1. Navigate to Resources > Swarms
-2. Click "New Swarm"
-3. Configure swarm settings
-4. Save
+### 2. Deploy the Stack
 
-### 2. Initialize the Swarm
+Once configured for swarm mode, deploy normally:
 
 ```bash
-komodo execute swarm-init my-swarm
+# Deploy stack (will use docker stack deploy instead of docker compose up)
+komodo execute stack my-stack
+
+# Or deploy if changed
+komodo execute deploy-stack-if-changed my-stack
 ```
 
-This initializes Docker Swarm on the target server. The swarm will be configured with:
-- Single manager node (the target server)
-- Default network configuration
-- Ready to accept service deployments
-
-### 3. Deploy a Service
-
-```bash
-komodo execute swarm-deploy my-swarm \
-  --service-name web-app \
-  --image nginx:latest \
-  --replicas 3 \
-  --ports 80:80 \
-  --update-parallelism 1 \
-  --update-delay 10s \
-  --update-failure-action rollback
-```
-
-### 4. Update a Service (Zero-Downtime)
-
-```bash
-komodo execute swarm-update my-swarm \
-  --service-name web-app \
-  --image nginx:alpine \
-  --update-parallelism 2 \
-  --update-delay 10s \
-  --update-order start-first
-```
+The Stack will automatically:
+1. Check if Swarm is initialized (auto-init if configured)
+2. Use `docker stack deploy` instead of `docker compose up`
+3. Apply your configured update parameters for zero-downtime rolling updates
 
 ## Zero-Downtime Deployment
 
-Komodo's Swarm support is designed specifically for zero-downtime deployments. Here's how it works:
+When you deploy a stack in Swarm mode, Docker orchestrates a rolling update:
 
-### Rolling Update Strategy
+### Configuration Options
 
-When you update a service, Docker Swarm updates containers in batches:
+- **Update Parallelism**: Controls how many tasks to update simultaneously (default: 1)
+- **Update Delay**: Time to wait between batch updates (e.g., "10s", "30s", "1m")
+- **Update Order**: 
+  - `stop-first`: Stop old task before starting new (default, lower resource usage)
+  - `start-first`: Start new task before stopping old (zero downtime, requires extra resources)
+- **Failure Action**:
+  - `pause`: Stop the update and wait for manual intervention
+  - `continue`: Continue updating despite failures
+  - `rollback`: Automatically rollback to previous version
+- **Max Failure Ratio**: Tolerable failure rate (0.0 to 1.0)
+- **Monitor Period**: Time to monitor after each update
 
-1. **Parallelism**: Controls how many tasks to update simultaneously
-2. **Delay**: Time to wait between batch updates
-3. **Update Order**: 
-   - `stop-first`: Stop old task before starting new (default)
-   - `start-first`: Start new task before stopping old (requires extra resources)
+### Example Stack Configuration
 
-### Failure Handling
+```toml
+[[stack]]
+name = "my-production-app"
+server_id = "my-server"
+deploy_mode = "swarm"
 
-Configure how the system responds to failures during deployment:
+# Compose file from Git repo
+repo = "owner/repo"
+branch = "main"
+file_paths = ["docker-compose.yml"]
 
-- **pause**: Stop the update and wait for manual intervention
-- **continue**: Continue updating despite failures
-- **rollback**: Automatically rollback to previous version
-
-### Example: Production Deployment
-
-```bash
-komodo execute swarm-update my-swarm \
-  --service-name api-service \
-  --image myapp:v2.0 \
-  --update-parallelism 2 \
-  --update-delay 30s \
-  --update-failure-action rollback \
-  --update-order start-first
+# Swarm-specific settings
+[stack.swarm_config]
+update_parallelism = 2
+update_delay = "30s"
+update_failure_action = "rollback"
+update_order = "start-first"
+update_max_failure_ratio = 0.1
+update_monitor = "5s"
+auto_init_swarm = true
 ```
 
-This configuration:
-- Updates 2 containers at a time
-- Waits 30 seconds between batches
-- Starts new containers before stopping old ones
-- Automatically rolls back if failures are detected
+## Compose File Best Practices
 
-## Service Management
+When deploying to Swarm, you can use Docker Compose's deploy configuration:
 
-### Scaling Services
+```yaml
+version: '3.8'
 
+services:
+  api:
+    image: myapp:latest
+    deploy:
+      replicas: 5
+      update_config:
+        parallelism: 2
+        delay: 30s
+        failure_action: rollback
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    ports:
+      - "8080:8080"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: overlay
+```
+
+## Stack Management
+
+All existing stack operations work seamlessly with Swarm mode:
+
+### Deploying
 ```bash
-# Scale up
-komodo execute swarm-scale my-swarm --service-name web-app --replicas 5
+# Regular deploy (uses swarm if deploy_mode is swarm)
+komodo execute stack my-stack
 
-# Scale down
-komodo execute swarm-scale my-swarm --service-name web-app --replicas 2
+# Deploy if changed (checks for updates first)
+komodo execute deploy-stack-if-changed my-stack
 ```
 
 ### Viewing Logs
-
 ```bash
-# Get last 100 lines
-komodo execute swarm-logs my-swarm --service-name web-app --tail 100
-
-# Get all logs
-komodo execute swarm-logs my-swarm --service-name web-app
+# View service logs (works in both compose and swarm modes)
+komodo execute get-compose-log --project my-stack --tail 100
 ```
 
-### Rollback
-
-If a deployment goes wrong, rollback to the previous version:
-
+### Managing Services
 ```bash
-komodo execute swarm-rollback my-swarm --service-name web-app
+# Start/stop/restart work the same
+komodo execute start-stack my-stack
+komodo execute restart-stack my-stack
+komodo execute stop-stack my-stack
 ```
 
-### Remove Service
+## Transitioning from Compose to Swarm
 
-```bash
-komodo execute swarm-remove my-swarm --service-name web-app
-```
+To transition an existing Stack from compose mode to swarm mode:
 
-## Advanced Configuration
+1. **Update the Stack Configuration**:
+   - Set `deploy_mode: swarm`
+   - Configure `swarm_config` with your desired update parameters
+   - Enable `auto_init_swarm` if desired
 
-### Custom Network Configuration
+2. **Update Your Compose File** (optional but recommended):
+   - Add `deploy` sections to your services
+   - Specify replica counts, update configs, resource limits
+   - Use `overlay` networks for multi-host networking
 
-When creating a swarm, you can specify custom network settings:
+3. **Deploy**:
+   - The next deployment will use Docker Swarm
+   - Services will be created with rolling update capabilities
+   - Your application will benefit from zero-downtime updates
 
-```bash
-# With custom address pools (when write API is implemented)
-komodo create swarm my-swarm \
-  --server my-server \
-  --advertise-addr 192.168.1.100 \
-  --listen-addr 0.0.0.0:2377 \
-  --default-addr-pool 10.20.0.0/16 \
-  --default-addr-pool 10.21.0.0/16
-```
+## Advanced Features
 
-### Resource Limits
+### Automatic Swarm Initialization
 
-Services can have resource limits and reservations:
+Set `auto_init_swarm: true` in your swarm config to automatically initialize Docker Swarm if it's not already active. This is useful for single-node setups where you want Swarm's rolling update features without manual initialization.
 
-```yaml
-# Via configuration (when UI is implemented)
-resources:
-  limits:
-    cpus: "2"
-    memory: 2G
-  reservations:
-    cpus: "1"
-    memory: 1G
-```
+### Mixed Deployments
 
-### Health Checks
+You can have some stacks using compose mode and others using swarm mode on the same server. Each stack operates independently based on its `deploy_mode` setting.
 
-Configure health checks for your services:
+### Version Control Integration
 
-```yaml
-healthcheck:
-  test: ["CMD", "curl", "-f", "http://localhost/health"]
-  interval: 30s
-  timeout: 10s
-  retries: 3
-  start_period: 40s
-```
-
-## Best Practices
-
-1. **Start Small**: Begin with `parallelism: 1` and increase as you gain confidence
-2. **Monitor First Updates**: Watch the first deployment carefully
-3. **Use Start-First Order**: For critical services, use `start-first` to avoid downtime
-4. **Set Appropriate Delays**: Allow time for health checks between updates
-5. **Enable Rollback**: Always set `update-failure-action: rollback` for production
-6. **Resource Reservations**: Set resource reservations to ensure service quality
-7. **Health Checks**: Always configure health checks for automatic failure detection
+All existing Git integration features work with Swarm mode:
+- Linked repos
+- Webhook triggers
+- Auto-deploy on changes
+- Compose file version control
 
 ## Troubleshooting
 
-### Swarm Won't Initialize
+### Swarm Not Initialized
 
-Check that:
-- Docker is running on the target server
-- Port 2377 (swarm management) is available
-- The server has network connectivity
+If you see "Docker Swarm is not initialized" and `auto_init_swarm` is false:
 
-### Service Update Fails
-
-Common causes:
-- Image not found or not accessible
-- Insufficient resources on the node
-- Port conflicts
-- Health check failures
-
-Check service logs:
 ```bash
-komodo execute swarm-logs my-swarm --service-name my-service --tail 200
+# Manually initialize swarm on your server
+ssh your-server
+docker swarm init
 ```
+
+Or enable `auto_init_swarm: true` in your stack's swarm configuration.
+
+### Services Not Updating
+
+Check your update configuration:
+- Ensure `update_parallelism` is > 0
+- Verify `update_failure_action` is set appropriately
+- Check service logs for errors
 
 ### Rollback Not Working
 
-Ensure the service has a previous version to rollback to. The first deployment cannot be rolled back.
+Rollbacks require a previous version. The first deployment cannot be rolled back. Subsequent deployments can rollback to the previous image/configuration.
+
+## Differences Between Compose and Swarm Modes
+
+| Feature | Compose Mode | Swarm Mode |
+|---------|-------------|------------|
+| Command | `docker compose up` | `docker stack deploy` |
+| Zero-Downtime | No | Yes (rolling updates) |
+| Scaling | Manual | Automatic orchestration |
+| Health Checks | Basic | Advanced with retries |
+| Multi-Node | No | Yes |
+| Rollback | Manual | Automatic option |
 
 ## API Reference
 
-### Swarm Operations
+All existing Stack operations work in Swarm mode:
 
-- `InitSwarm` - Initialize Docker Swarm
-- `LeaveSwarm` - Leave Docker Swarm
-- `DeploySwarmService` - Deploy new service
-- `UpdateSwarmService` - Update existing service
-- `RemoveSwarmService` - Remove service
-- `ScaleSwarmService` - Scale service replicas
-- `GetSwarmServiceLogs` - View service logs
-- `RollbackSwarmService` - Rollback service
-
-### CLI Aliases
-
-- `swarm-init` → `InitSwarm`
-- `swarm-leave` → `LeaveSwarm`
-- `swarm-deploy` → `DeploySwarmService`
-- `swarm-update` → `UpdateSwarmService`
-- `swarm-remove` → `RemoveSwarmService`
-- `swarm-scale` → `ScaleSwarmService`
-- `swarm-logs` → `GetSwarmServiceLogs`
-- `swarm-rollback` → `RollbackSwarmService`
+- `DeployStack` - Deploy stack (uses swarm if configured)
+- `DeployStackIfChanged` - Deploy if changes detected
+- `StartStack` - Start services
+- `RestartStack` - Restart services
+- `StopStack` - Stop services
+- `DestroyStack` - Remove stack/services
 
 ## Examples
 
-### Deploy a Web Application
+### Simple Web Service
 
-```bash
-# Deploy with 3 replicas and load balancing
-komodo execute swarm-deploy my-swarm \
-  --service-name webapp \
-  --image myapp:latest \
-  --replicas 3 \
-  --ports 80:8080 \
-  --env APP_ENV=production \
-  --env DATABASE_URL=postgres://... \
-  --update-parallelism 1 \
-  --update-delay 10s \
-  --update-failure-action rollback
+```yaml
+version: '3.8'
+services:
+  web:
+    image: nginx:alpine
+    deploy:
+      replicas: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+    ports:
+      - "80:80"
 ```
 
-### Zero-Downtime Update
-
-```bash
-# Update to new version with zero downtime
-komodo execute swarm-update my-swarm \
-  --service-name webapp \
-  --image myapp:v2.0 \
-  --update-parallelism 2 \
-  --update-delay 30s \
-  --update-order start-first \
-  --update-failure-action rollback
+Stack config:
+```toml
+[[stack]]
+name = "web-service"
+deploy_mode = "swarm"
+file_contents = "..." # Or use repo
+[stack.swarm_config]
+auto_init_swarm = true
 ```
 
-### Scale for Traffic
+### Production API with Database
 
-```bash
-# Handle increased traffic
-komodo execute swarm-scale my-swarm \
-  --service-name webapp \
-  --replicas 10
+```yaml
+version: '3.8'
+services:
+  api:
+    image: myapi:latest
+    deploy:
+      replicas: 5
+      update_config:
+        parallelism: 2
+        delay: 30s
+        failure_action: rollback
+        order: start-first
+    environment:
+      - DATABASE_URL=postgres://db:5432/myapp
+    
+  db:
+    image: postgres:15
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+volumes:
+  db-data:
+
+networks:
+  default:
+    driver: overlay
 ```
 
 ## Future Enhancements
 
 - Multi-node swarm support
-- Swarm service templates
-- Automatic health check configuration
-- Integration with CI/CD pipelines
-- Swarm network management
-- Volume management for stateful services
 - Service constraints and placement preferences
+- Advanced health check configuration
+- Swarm secrets management
+- Stack templates for common patterns
 
 ## Support
 
@@ -304,7 +337,3 @@ For issues or questions:
 - GitHub Issues: https://github.com/mattsmallman/komodo/issues
 - Discord: https://discord.gg/DRqE8Fvg5c
 - Documentation: https://komo.do
-
-## Contributing
-
-Contributions are welcome! See the implementation summary for areas that need work.

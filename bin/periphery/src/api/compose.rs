@@ -9,7 +9,8 @@ use komodo_client::entities::{
   FileContents, RepoExecutionResponse, all_logs_success,
   stack::{
     ComposeFile, ComposeProject, ComposeService,
-    ComposeServiceDeploy, StackRemoteFileContents, StackServiceNames,
+    ComposeServiceDeploy, StackDeployMode, StackRemoteFileContents,
+    StackServiceNames,
   },
   to_path_compatible_name,
   update::Log,
@@ -634,31 +635,127 @@ impl Resolve<super::Args> for ComposeUp {
     {
       // Take down the existing containers.
       // This one tries to use the previously deployed service name, to ensure the right stack is taken down.
+      // Note: For swarm mode, this will use `docker stack rm` if swarm is active
       crate::compose::down(&last_project_name, &services, &mut res)
         .await
         .context("failed to destroy existing containers")?;
     }
 
-    // Run compose up
-    let extra_args = parse_extra_args(&stack.config.extra_args);
-    let command = format!(
-      "{docker_compose} -p {project_name} -f {file_args}{env_file_args} up -d{extra_args}{service_args}",
-    );
+    // Deploy using either docker compose or docker stack based on deploy_mode
+    match stack.config.deploy_mode {
+      StackDeployMode::Compose => {
+        // Run compose up (traditional mode)
+        let extra_args = parse_extra_args(&stack.config.extra_args);
+        let command = format!(
+          "{docker_compose} -p {project_name} -f {file_args}{env_file_args} up -d{extra_args}{service_args}",
+        );
 
-    let Some(log) = run_komodo_command_with_sanitization(
-      "Compose Up",
-      run_directory.as_path(),
-      command,
-      false,
-      &replacers,
-    )
-    .await
-    else {
-      unreachable!()
-    };
+        let Some(log) = run_komodo_command_with_sanitization(
+          "Compose Up",
+          run_directory.as_path(),
+          command,
+          false,
+          &replacers,
+        )
+        .await
+        else {
+          unreachable!()
+        };
 
-    res.deployed = log.success;
-    res.logs.push(log);
+        res.deployed = log.success;
+        res.logs.push(log);
+      }
+      StackDeployMode::Swarm => {
+        // Deploy to Docker Swarm for zero-downtime updates
+        let swarm_config = &stack.config.swarm_config;
+        
+        // Check if swarm is initialized, auto-init if configured
+        let swarm_check = run_komodo_command(
+          "Check Swarm",
+          None,
+          "docker info --format '{{.Swarm.LocalNodeState}}'".to_string(),
+        )
+        .await;
+        
+        let swarm_active = swarm_check.success && swarm_check.stdout.trim() == "active";
+        
+        if !swarm_active && swarm_config.auto_init_swarm {
+          let init_log = run_komodo_command(
+            "Init Swarm",
+            None,
+            "docker swarm init".to_string(),
+          )
+          .await;
+          res.logs.push(init_log.clone());
+          if !init_log.success {
+            res.deployed = false;
+            return Ok(res);
+          }
+        } else if !swarm_active {
+          res.logs.push(Log::error(
+            "Swarm Not Active",
+            "Docker Swarm is not initialized. Enable 'auto_init_swarm' or run 'docker swarm init' manually.".to_string(),
+          ));
+          res.deployed = false;
+          return Ok(res);
+        }
+        
+        // Build docker stack deploy command with update configuration
+        let mut deploy_args = Vec::new();
+        
+        if swarm_config.update_parallelism > 0 {
+          deploy_args.push(format!("--update-parallelism={}", swarm_config.update_parallelism));
+        }
+        if !swarm_config.update_delay.is_empty() {
+          deploy_args.push(format!("--update-delay={}", swarm_config.update_delay));
+        }
+        if !swarm_config.update_monitor.is_empty() {
+          deploy_args.push(format!("--update-monitor={}", swarm_config.update_monitor));
+        }
+        if swarm_config.update_max_failure_ratio > 0.0 {
+          deploy_args.push(format!("--update-max-failure-ratio={}", swarm_config.update_max_failure_ratio));
+        }
+        
+        let update_failure_action = swarm_config.update_failure_action.to_string();
+        if !update_failure_action.is_empty() {
+          deploy_args.push(format!("--update-failure-action={}", update_failure_action));
+        }
+        
+        let update_order = swarm_config.update_order.to_string();
+        if !update_order.is_empty() {
+          deploy_args.push(format!("--update-order={}", update_order));
+        }
+        
+        let deploy_args_str = if deploy_args.is_empty() {
+          String::new()
+        } else {
+          format!(" {}", deploy_args.join(" "))
+        };
+        
+        // Use docker stack deploy with compose files
+        let command = format!(
+          "docker stack deploy -c {}{}{}",
+          file_args.replace(" -f ", " -c "),
+          deploy_args_str,
+          project_name
+        );
+
+        let Some(log) = run_komodo_command_with_sanitization(
+          "Stack Deploy",
+          run_directory.as_path(),
+          command,
+          false,
+          &replacers,
+        )
+        .await
+        else {
+          unreachable!()
+        };
+
+        res.deployed = log.success;
+        res.logs.push(log);
+      }
+    }
 
     if res.deployed && !stack.config.post_deploy.is_none() {
       let post_deploy_path =
