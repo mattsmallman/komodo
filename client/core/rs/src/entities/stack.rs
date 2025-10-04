@@ -538,6 +538,19 @@ pub struct StackConfig {
   ))]
   #[builder(default)]
   pub environment: String,
+
+  /// Deployment mode: compose (default) or swarm.
+  /// When set to swarm, uses `docker stack deploy` instead of `docker compose up`.
+  /// Enables zero-downtime rolling updates via Docker Swarm.
+  #[serde(default)]
+  #[builder(default)]
+  pub deploy_mode: StackDeployMode,
+
+  /// Swarm-specific deployment configuration.
+  /// Only used when deploy_mode is Swarm.
+  #[serde(default)]
+  #[builder(default)]
+  pub swarm_config: StackSwarmConfig,
 }
 
 impl StackConfig {
@@ -620,6 +633,8 @@ impl Default for StackConfig {
       webhook_force_deploy: Default::default(),
       send_alerts: default_send_alerts(),
       links: Default::default(),
+      deploy_mode: Default::default(),
+      swarm_config: Default::default(),
     }
   }
 }
@@ -898,6 +913,127 @@ impl<'de> Deserialize<'de> for StackFileDependency {
 
     deserializer.deserialize_any(StackFileDependencyVisitor)
   }
+}
+
+/// Deployment mode for stacks
+#[typeshare]
+#[derive(
+  Debug,
+  Clone,
+  Copy,
+  Default,
+  PartialEq,
+  Eq,
+  Serialize,
+  Deserialize,
+  Display,
+)]
+#[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
+pub enum StackDeployMode {
+  /// Deploy using docker compose (default)
+  #[default]
+  Compose,
+  /// Deploy using docker stack (Docker Swarm mode)
+  /// Enables zero-downtime rolling updates
+  Swarm,
+}
+
+/// Swarm-specific deployment configuration for zero-downtime updates
+#[typeshare]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StackSwarmConfig {
+  /// Number of tasks to update at once (default: 1)
+  #[serde(default = "default_parallelism")]
+  pub update_parallelism: u64,
+  
+  /// Delay between updates (e.g., "10s", "1m")
+  #[serde(default)]
+  pub update_delay: String,
+  
+  /// Action on update failure (pause, continue, rollback)
+  #[serde(default)]
+  pub update_failure_action: StackSwarmFailureAction,
+  
+  /// Order of operations (stop-first or start-first)
+  #[serde(default)]
+  pub update_order: StackSwarmUpdateOrder,
+  
+  /// Maximum tolerated failure rate during updates (0.0 to 1.0)
+  #[serde(default)]
+  pub update_max_failure_ratio: f32,
+  
+  /// Monitor period after each update (e.g., "5s")
+  #[serde(default)]
+  pub update_monitor: String,
+  
+  /// Whether to initialize swarm automatically if not already initialized
+  #[serde(default)]
+  pub auto_init_swarm: bool,
+}
+
+impl Default for StackSwarmConfig {
+  fn default() -> Self {
+    Self {
+      update_parallelism: default_parallelism(),
+      update_delay: String::new(),
+      update_failure_action: StackSwarmFailureAction::Pause,
+      update_order: StackSwarmUpdateOrder::StopFirst,
+      update_max_failure_ratio: 0.0,
+      update_monitor: String::new(),
+      auto_init_swarm: false,
+    }
+  }
+}
+
+fn default_parallelism() -> u64 {
+  1
+}
+
+#[typeshare]
+#[derive(
+  Debug,
+  Clone,
+  Copy,
+  Default,
+  PartialEq,
+  Eq,
+  Serialize,
+  Deserialize,
+  Display,
+)]
+#[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
+pub enum StackSwarmFailureAction {
+  /// Pause the update on failure
+  #[default]
+  Pause,
+  /// Continue updating despite failures
+  Continue,
+  /// Automatically rollback on failure
+  Rollback,
+}
+
+#[typeshare]
+#[derive(
+  Debug,
+  Clone,
+  Copy,
+  Default,
+  PartialEq,
+  Eq,
+  Serialize,
+  Deserialize,
+  Display,
+)]
+#[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
+pub enum StackSwarmUpdateOrder {
+  /// Stop old task before starting new (default)
+  #[default]
+  StopFirst,
+  /// Start new task before stopping old (requires extra resources)
+  StartFirst,
 }
 
 // // This one is nice for TOML, but annoying to use on frontend
